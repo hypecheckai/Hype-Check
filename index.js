@@ -1,5 +1,8 @@
 import express from 'express';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+console.log("Checking API Key...", process.env.GEMINI_API_KEY ? "Key Found! ✅" : "Key MISSING! ❌");
+
+const app = express();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
