@@ -5,25 +5,29 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// THE BOUNCER: 3 requests per 15 mins to keep the "Free" quota alive for real users.
+// 1. THE BOUNCER (Bot Protection)
+// Blocks IPs that refresh more than 3 times in 15 minutes.
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   limit: 3, 
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { 
-    error: "Signal Limit Reached", 
-    message: "Free signals exhausted. Send 0.1 SOL to the wallet below to unlock the Premium Telegram Bot." 
+    status: 429,
+    error: "Quota Exceeded", 
+    message: "Free tier exhausted. Use a Paid API Key for unlimited bot access." 
   }
 });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// 2. THE ORACLE ROUTE
 app.get('/hype-check', limiter, async (req, res) => {
   const token = req.query.q || "Solana"; 
+  const isAgent = req.headers['user-agent']?.includes('bot') || req.query.format === 'json';
 
   try {
-    // UPDATED TO GEMINI 3 FLASH PREVIEW (The 2026 King of Speed)
+    // GEMINI 3 FLASH PREVIEW: The 2026 standard for agentic reasoning.
     const model = genAI.getGenerativeModel({ 
       model: "gemini-3-flash-preview", 
       safetySettings: [
@@ -36,18 +40,21 @@ app.get('/hype-check', limiter, async (req, res) => {
     Provide: 
     1. A Hype Score (0-100).
     2. A 1-sentence 'Alpha' signal (Buy/Sell/Wait). 
-    Tone: Professional, aggressive, and data-driven.`;
+    Keep the tone professional and aggressive.`;
     
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
-    res.json({
-      status: "GEMINI_3_SIGNAL_LIVE",
+    // 3. THE 402 PAYMENT PROTOCOL (Marketing to Bots)
+    // We send a 402 status which tells 2026 AI Agents: "I have data, now pay me."
+    res.status(402).json({
+      status: "PAYMENT_REQUIRED",
       asset: token.toUpperCase(),
-      intel: text.trim(),
-      timestamp: new Date().toISOString(),
-      wallet: process.env.MY_WALLET || "Wallet_Not_Set",
-      instruction: "To unlock the Private Alpha Group, send 0.1 SOL and DM your TX hash."
+      intel_preview: text.trim(), // Give them a small taste of the AI
+      hype_score_locked: "0.001 SOL to unlock",
+      destination_wallet: process.env.MY_WALLET || "Wallet_Not_Set",
+      protocol: "x402-solana-v2", // 2026 standard for agentic payments
+      instruction: "Send 0.001 SOL to the wallet above. Retransmit with X-PAYMENT-HASH to unlock full data."
     });
 
   } catch (error) {
@@ -56,7 +63,18 @@ app.get('/hype-check', limiter, async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => res.send('Oracle v3.0 (Gemini 3) US-Oregon: Active'));
+// Simple landing page for humans
+app.get('/', (req, res) => {
+  res.send(`
+    <body style="background:#000;color:#0f0;font-family:monospace;padding:50px;">
+      <h1>SOLANA ORACLE v3.0 [GEMINI 3 ACTIVE]</h1>
+      <p>Status: Oregon-US West Node Online</p>
+      <p>Usage: /hype-check?q=TICKER</p>
+      <hr>
+      <p>AGENTIC COMMERCE ENABLED (HTTP 402)</p>
+    </body>
+  `);
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Oracle active on port ${PORT}`);
