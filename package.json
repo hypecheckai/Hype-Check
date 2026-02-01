@@ -9,7 +9,7 @@
   "dependencies": {
     "express": "^4.21.0",
     "express-rate-limit": "^7.1.0",
-    "@google/generative-ai": "^0.21.0"
+    "@google/generative-ai": "^0.21.0",
     "@solana/web3.js": "1.98.4"
   }
 }
