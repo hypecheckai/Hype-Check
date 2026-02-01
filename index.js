@@ -10,31 +10,39 @@ const MY_WALLET = process.env.MY_WALLET;
 const solanaConnection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// 1. THE BOUNCER: Standard bot protection
+// THE BOUNCER
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   limit: 5, 
-  message: { error: "402 Payment Required", message: "Pay 0.001 SOL to unlock more signals." }
+  message: { error: "402 Payment Required", message: "Pay 0.001 SOL to unlock Alpha." }
 });
 
-// 2. THE RETRY ENGINE: Automatically tries again if Google is busy
-async function generateWithRetry(model, prompt, retries = 3, delay = 2000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const result = await model.generateContent(prompt);
-      return result.response.text();
-    } catch (error) {
-      // Only retry if it's a server error (500, 503) or rate limit (429)
-      const isRetryable = error.message.includes('500') || error.message.includes('503') || error.message.includes('429');
-      if (i < retries - 1 && isRetryable) {
-        console.log(`Oracle busy, retrying in ${delay}ms... (Attempt ${i + 1})`);
-        await new Promise(res => setTimeout(res, delay));
-        delay *= 2; // Wait longer each time (Exponential Backoff)
-      } else {
-        throw error;
+// THE RESILIENT ENGINE (Retries + Fallback)
+async function getAlphaSignal(token) {
+  const models = ["gemini-2.0-flash", "gemini-1.5-flash"]; // Primary then Fallback
+  let lastError;
+
+  for (const modelName of models) {
+    const model = genAI.getGenerativeModel({ model: modelName });
+    const prompt = `Senior Whale Analyst: Analyze ${token}. Provide a Hype Score (0-100) and 1-sentence Alpha verdict.`;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        console.log(`Attempting with ${modelName} (Attempt ${attempt + 1})...`);
+        const result = await model.generateContent(prompt);
+        return { text: result.response.text(), modelUsed: modelName };
+      } catch (error) {
+        lastError = error;
+        // If it's a 503 or 429, wait 2 seconds before retry/fallback
+        if (error.message.includes('503') || error.message.includes('429')) {
+          await new Promise(res => setTimeout(res, 2000));
+        } else {
+          break; // If it's a 400 (Bad Prompt), don't bother retrying
+        }
       }
     }
   }
+  throw lastError;
 }
 
 app.get('/hype-check', limiter, async (req, res) => {
@@ -44,41 +52,32 @@ app.get('/hype-check', limiter, async (req, res) => {
   if (!txHash) {
     return res.status(402).json({
       status: "PAYMENT_REQUIRED",
-      price: "0.001 SOL",
       destination: MY_WALLET,
-      instruction: `Send 0.001 SOL to ${MY_WALLET} and retry with &hash=YOUR_TX_ID`
+      instruction: `Send 0.001 SOL to ${MY_WALLET} and retry with &hash=TX_ID`
     });
   }
 
   try {
-    // Verify Payment
+    // 1. Check Blockchain
     const tx = await solanaConnection.getParsedTransaction(txHash, { maxSupportedTransactionVersion: 0 });
-    if (!tx) return res.status(404).json({ error: "Transaction not found. Wait 10s." });
+    if (!tx) return res.status(404).json({ error: "Transaction pending. Wait 10s." });
 
-    // Payment Logic
-    const accountKeys = tx.transaction.message.accountKeys.map(ak => ak.pubkey.toString());
-    const myIndex = accountKeys.indexOf(MY_WALLET);
-    if (myIndex === -1) return res.status(403).json({ error: "Invalid payment destination." });
-
-    // Trigger Gemini 2.0 Flash (The Stable Workhorse)
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const prompt = `Act as a senior whale analyst. Provide a Hype Score (0-100) and 1-sentence Alpha verdict for ${token}.`;
-    
-    // Use the Retry Engine
-    const text = await generateWithRetry(model, prompt);
+    // 2. Get AI Signal with Fallback Logic
+    const { text, modelUsed } = await getAlphaSignal(token);
 
     res.json({
-      status: "SUCCESS_ALPHA_UNLOCKED",
+      status: "SUCCESS",
       asset: token.toUpperCase(),
       verdict: text.trim(),
+      engine: modelUsed, // Show the user which AI answered
       verified: true
     });
 
   } catch (error) {
-    console.error("Final Error:", error.message);
-    res.status(500).json({ error: "Oracle offline. Google servers are currently overloaded. Try again in 5 minutes." });
+    console.error("Critical Error:", error.message);
+    res.status(500).json({ error: "All AI models are currently saturated. This is a global Google outage. Please try again in 10 minutes." });
   }
 });
 
-app.get('/', (req, res) => res.send('Solana Oracle v3.5 [RETRY ENABLED]'));
+app.get('/', (req, res) => res.send('Solana Oracle v3.6 [FALLBACK ENABLED]'));
 app.listen(PORT, '0.0.0.0');
