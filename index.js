@@ -45,11 +45,38 @@ async function getAlphaSignal(token) {
   throw lastError;
 }
 
+// --- LANDING PAGE (Professional View) ---
+app.get('/', (req, res) => {
+  res.send(`
+    <body style="background:#0a0a0a; color:#00ffa3; font-family:monospace; padding:40px; line-height:1.6;">
+      <h1 style="border-bottom: 2px solid #00ffa3; padding-bottom:10px;">⚡ SOLANA AI ORACLE v3.7</h1>
+      <p><b>Status:</b> <span style="color:#fff;">OPERATIONAL</span></p>
+      <p><b>Active Engines:</b> <span style="color:#fff;">Gemini 2.0 Flash & Gemini 1.5</span></p>
+      <hr style="border:0.5px solid #333;">
+      
+      <h3>🚀 DEVELOPER API GUIDE</h3>
+      <p>To integrate your trading bot, use the following endpoint:</p>
+      <code style="background:#222; padding:10px; display:block; color:#fff; border-radius:5px;">GET /hype-check?q={TICKER}&hash={TX_ID}</code>
+      
+      <h3>💰 PRICING</h3>
+      <ul>
+        <li><b>0.001 SOL</b> per Alpha Signal</li>
+        <li><b>Free:</b> Solana ($SOL) analysis is currently open for testing.</li>
+      </ul>
+      
+      <h3>🏦 SETTLEMENT WALLET</h3>
+      <code style="background:#222; padding:10px; display:block; color:#fff; border-radius:5px; word-break:break-all;">${MY_WALLET}</code>
+      
+      <p style="margin-top:40px; font-size:12px; color:#666;">Built for the 2026 Agentic Economy. Powered by Gemini Flash.</p>
+    </body>
+  `);
+});
+
+// --- THE ORACLE LOGIC ---
 app.get('/hype-check', limiter, async (req, res) => {
   const token = req.query.q || "Solana";
   const txHash = req.query.hash;
 
-  // --- NEW: SIGNATURE SIZE VALIDATION ---
   if (!txHash) {
     return res.status(402).json({
       status: "PAYMENT_REQUIRED",
@@ -58,21 +85,18 @@ app.get('/hype-check', limiter, async (req, res) => {
     });
   }
 
-  // Solana signatures are 87-88 characters in Base58. 
-  // This block prevents the "WrongSize" error.
+  // VALIDATION: Prevents "WrongSize" error
   if (txHash.length < 80 || txHash.length > 95) {
     return res.status(400).json({
       error: "Invalid Transaction Hash",
-      message: "The signature provided is the wrong size. Use the Transaction ID, not a wallet address."
+      message: "Signature size mismatch. Ensure you send the 88-character Tx ID, not your wallet address."
     });
   }
 
   try {
-    // 1. Check Blockchain
     const tx = await solanaConnection.getParsedTransaction(txHash, { maxSupportedTransactionVersion: 0 });
-    if (!tx) return res.status(404).json({ error: "Transaction not found. Wait 10s for the chain to sync." });
+    if (!tx) return res.status(404).json({ error: "Transaction pending. Wait 10s for the block to finalize." });
 
-    // 2. Get AI Signal with Fallback Logic
     const { text, modelUsed } = await getAlphaSignal(token);
 
     res.json({
@@ -85,9 +109,10 @@ app.get('/hype-check', limiter, async (req, res) => {
 
   } catch (error) {
     console.error("Critical Error:", error.message);
-    res.status(500).json({ error: "All AI models are currently busy. Try again in 5 minutes." });
+    res.status(500).json({ error: "All AI models are currently saturated. Try again in 5 minutes." });
   }
 });
 
-app.get('/', (req, res) => res.send('Solana Oracle v3.7 [FALLBACK + VALIDATION ENABLED]'));
-app.listen(PORT, '0.0.0.0');
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Automated Oracle live on ${PORT}`);
+});
