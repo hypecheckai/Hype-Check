@@ -7,7 +7,7 @@ from email.message import EmailMessage
 
 # --- 1. CONFIGURATION (STRICTLY FOR GMAIL) ---
 GMAIL_USER = "pablo26002@gmail.com"
-GMAIL_APP_PASS = "obmg zjts vwaj bszt"  # Your 16-character App Password
+GMAIL_APP_PASS = "obmgzjtsvwajbszt"  # Your 16-character App Password
 MAILHOOK = "3prg8vxc39i78auppwtbmeb8ozcrno6k@hook.us2.make.com"
 MY_SOL_WALLET = "59N8hT6FsrKdmrJPE9B9aWZXUaWM4AS5jxH9JBxNZyWD" 
 REF_LINK = "https://hypecheckai.github.io"
