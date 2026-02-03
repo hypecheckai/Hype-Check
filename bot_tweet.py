@@ -1,78 +1,60 @@
 import os
 import requests
-import smtplib
-import threading
 from flask import Flask
-from email.message import EmailMessage
-
-# --- 1. CONFIGURATION (STRICTLY FOR GMAIL) ---
-GMAIL_USER = "pablo26002@gmail.com"
-GMAIL_APP_PASS = "obmgzjtsvwajbszt"  # Your 16-character App Password
-MAILHOOK = "3prg8vxc39i78auppwtbmeb8ozcrno6k@hook.us2.make.com"
-MY_SOL_WALLET = "59N8hT6FsrKdmrJPE9B9aWZXUaWM4AS5jxH9JBxNZyWD" 
-REF_LINK = "https://hypecheckai.github.io"
 
 app = Flask(__name__)
 
-# --- 2. THE ALPHA LOGIC ---
-def fetch_sol_alpha():
-    try:
-        url = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true"
-        data = requests.get(url).json()['solana']
-        price = round(data['usd'], 2)
-        change = round(data['usd_24h_change'], 2)
-        vol = data['usd_24h_vol']
-        
-        status = "🐋 WHALE ALERT" if vol > 3000000000 else "📈 MARKET ALPHA"
-        score = int(50 + (change * 2))
-        return score, price, change, status
-    except Exception as e:
-        print(f"Data Fetch Error: {e}")
-        return 75, "Live", 0, "📈 MARKET ALPHA"
-
-def send_tweet():
-    """This function handles the actual data processing and email sending."""
-    print("Bot is waking up...")
-    score, price, change, status = fetch_sol_alpha()
-    emoji = "🚀" if change > 0 else "📉"
+def send_email_via_brevo(subject, body):
+    """Sends an email using the Brevo API to bypass Render's SMTP block."""
+    api_key = os.environ.get("BREVO_API_KEY")
+    sender_email = os.environ.get("SENDER_EMAIL")
     
-    content = (
-        f"{status}\n\n"
-        f"$SOL Sentiment: {score}/100 {emoji}\n"
-        f"Price: ${price} ({change}%)\n\n"
-        f"🔗 Live Dashboard: {REF_LINK}\n"
-        f"💰 Trade & Swap: https://jup.ag/swap/USDC-SOL\n"
-        f"☕ Support: {MY_SOL_WALLET}"
-    )
+    if not api_key or not sender_email:
+        return "Missing API Key or Sender Email in Environment Variables."
 
-    msg = EmailMessage()
-    msg.set_content(content)
-    msg['Subject'] = "HypeCheck Alpha Dispatch"
-    msg['From'] = GMAIL_USER
-    msg['To'] = MAILHOOK
+    url = "https://api.brevo.com/v3/smtp/email"
+    
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": api_key
+    }
+    
+    payload = {
+        "sender": {"email": sender_email, "name": "Hype Bot"},
+        "to": [{"email": sender_email}],  # Sending to yourself to trigger Make/Zapier
+        "subject": subject,
+        "textContent": body
+    }
 
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(GMAIL_USER, GMAIL_APP_PASS)
-            server.send_message(msg)
-        print("✅ Alpha Report sent to X via Gmail!")
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 201:
+            print("✅ Email sent successfully via Brevo!")
+            return True
+        else:
+            print(f"❌ Brevo Error: {response.status_code} - {response.text}")
+            return False
     except Exception as e:
-        print(f"❌ Gmail Error: {e}")
-
-# --- 3. THE "DOORBELL" ROUTE ---
-@app.route('/')
-def home():
-    return "HypeCheck AI is Online. Visit /trigger-bot to fire the alpha.", 200
+        print(f"❌ Connection Error: {str(e)}")
+        return False
 
 @app.route('/trigger-bot')
 def trigger():
-    # Use threading so the browser gets a fast 'Success' message 
-    # while the bot works in the background.
-    threading.Thread(target=send_tweet).start()
-    return "Bot Triggered Successfully!", 200
+    # 1. Your Solana Alpha Logic goes here
+    # (For now, we are testing the delivery)
+    report_title = "🚀 Solana Alpha Report"
+    report_body = "$SOL is looking bullish! This is a test from your Render bot."
+
+    # 2. Try to send the report
+    success = send_email_via_brevo(report_title, report_body)
+
+    if success:
+        return "Bot Triggered Successfully! Check your Gmail.", 200
+    else:
+        return "Bot Triggered, but Email Failed. Check Render Logs.", 500
 
 if __name__ == "__main__":
-    # Render provides the PORT environment variable automatically
-    port = int(os.environ.get("PORT", 5000))
+    # Render uses the PORT environment variable automatically
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
