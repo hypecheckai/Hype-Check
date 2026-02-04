@@ -10,11 +10,11 @@ app = Flask(__name__)
 MAKE_MAILHOOK_URL = "Nmfi8v8dfm1nmotnm64tng1i6xco4w1l@hook.us2.make.com"
 
 # 2. Your Gmail details
-SENDER_EMAIL = "YOUR_GMAIL@gmail.com"
-APP_PASSWORD = "YOUR_16_CHAR_APP_PASSWORD" # The 16-character code from Google
+SENDER_EMAIL = "pablo26002@gmail.com"
+APP_PASSWORD = "obmgzjtsvwajbszt" # The 16-character code from Google
 
 def get_solana_report():
-    """
+    ""
     This is where your bot gathers the 'Alpha' data. 
     (Keep your existing logic for scraping or API calls here)
     """
