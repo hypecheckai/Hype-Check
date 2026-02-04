@@ -14,7 +14,7 @@ SENDER_EMAIL = "pablo26002@gmail.com"
 APP_PASSWORD = "obmgzjtsvwajbszt" # The 16-character code from Google
 
 def get_solana_report():
-    ""
+    """
     This is where your bot gathers the 'Alpha' data. 
     (Keep your existing logic for scraping or API calls here)
     """
